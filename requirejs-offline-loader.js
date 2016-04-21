@@ -72,7 +72,7 @@
 						type: xhr.getResponseHeader('content-type')
 					} );
 				} else {
-					alert('文件加载出现错误，请重试！');
+					throw new Error(url + '网络文件加载出现错误，请重试！');
 					console.error( new Error( xhr.statusText ) );
 				}
 			}
@@ -167,10 +167,6 @@
 
 	var injectScript = function( obj ) {
 		var script = document.createElement('script');
-		//script.defer = true;
-		// Have to use .text, since we support IE8,
-		// which won't allow appending to a script
-		//script.text = obj.data;
 		script.async = true;
 		script.src = encodeURI('data:text/javascript,' + obj.data);
 		script.setAttribute('data-key', obj.key);
