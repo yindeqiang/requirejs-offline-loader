@@ -1,16 +1,19 @@
 /*!
-* basket.js
-* http://github.com/yindeqiang/requirejs-offline-loader
+* rol.js
+*  http://github.com/yindeqiang/requirejs-offline-loader
 * Created by: yindeqiang
 */
 (function( window, document ) {
 	'use strict';
 
 	var head = document.head || document.getElementsByTagName('head')[0];
-	var storagePrefix = 'basket-';
+	var storagePrefix = 'rol-';
 	var defaultExpiration = 5000;
-	var inBasket = [];
+	var inrol = [];
 
+	/**
+	 * 添加到localstorage中进行存储
+	 */
 	var addLocalStorage = function( key, storeObj ) {
 		try {
 			localStorage.setItem( storagePrefix + key, JSON.stringify( storeObj ) );
@@ -31,7 +34,7 @@
 						return a.stamp - b.stamp;
 					});
 
-					basket.remove( tempScripts[ 0 ].key );
+					rol.remove( tempScripts[ 0 ].key );
 
 					return addLocalStorage( key, storeObj );
 
@@ -57,7 +60,10 @@
 			if ( xhr.readyState === 4 ) {
 				if ( ( xhr.status === 200 ) ||
 						( ( xhr.status === 0 ) && xhr.responseText ) ) {
-
+					
+					/**
+					 * 对js中的中文进行转码，防止在页面中出现乱码，尤其在调用模板的时候
+					 */
 					var result = xhr.responseText.replace(/[\u4e00-\u9fa5]/g,  function (str){
                         return window.escape(str).replace(/(%u)(\w{4})/gi,'\\u$2');
                     });
@@ -72,13 +78,11 @@
 			}
 		};
 
-		// By default XHRs never timeout, and even Chrome doesn't implement the
-		// spec for xhr.timeout. So we do it ourselves.
 		setTimeout( function () {
 			if( xhr.readyState < 4 ) {
 				xhr.abort();
 			}
-		}, basket.timeout );
+		}, rol.timeout );
 		// xhr.setRequestHeader('Accept-Charset', 'UTF-8');
 		//xhr.setRequestHeader('Content-Type', 'text/javascript;charset=UTF-8');
 		xhr.send();
@@ -116,7 +120,7 @@
 	var isCacheValid = function(source, obj) {
 		return !source ||
 			source.expire - +new Date() < 0  ||
-			(basket.isValidItem && !basket.isValidItem(source, obj));
+			(rol.isValidItem && !rol.isValidItem(source, obj));
 	};
 
 	var handleStackObject = function( obj ) {
@@ -127,19 +131,21 @@
 		}
 
 		obj.key =  ( obj.key || obj.url );
-		source = basket.get( obj.key );
+		source = rol.get( obj.key );
                 
 		obj.execute = obj.execute !== false;
 
 		shouldFetch = isCacheValid(source, obj);
 
-		//必须更新的时候，防止一个文件因为前缀的版本号不同，而存在多个
+		/**
+		 * 必须更新的时候，防止一个文件因为前缀的版本号不同，而存在多个
+		 */
 		if(source && shouldFetch){
 			var key = obj.key;
 			var res = key.split('/');
 			var fileName = res[res.length-1]; //文件名
 			var prefix = key.replace(fileName, ''); //路径
-			fileName = fileName.replace(/[\d\w]{8}\.([\w\d\.]+)(js|css)/,'$1$2');
+			fileName = fileName.replace(/[\d\w]{8}\.([\w\d\.]+)(js|css)/,'$1$2'); //匹配类似 l0d9b3jy.test.js
 			for(var item in localStorage){
 				if(item.lastIndexOf(fileName) === item.length - fileName.length  && item.indexOf(storagePrefix + prefix) === 0){
 					localStorage.removeItem(item);
@@ -147,22 +153,8 @@
 			}
 		}
 
-
 		if( obj.live || shouldFetch ) {
-
 			saveUrl( obj );
-
-			/*
-			if( obj.live && !shouldFetch ) {
-				promise = promise
-					.then( function( result ) {
-						// If we succeed, just return the value
-						// RSVP doesn't have a .fail convenience method
-						return result;
-					}, function() {
-						return source;
-					});
-			}*/
 		} else {
 			source.type = obj.type || source.originalType;
 			source.execute = obj.execute;
@@ -192,7 +184,7 @@
 		if(!key) {
 			return;
 		}
-		var obj = getBasketObj(key);
+		var obj = getrolObj(key);
 		if(obj.loadComplete){
 			obj.loadComplete();
 		}
@@ -225,33 +217,33 @@
 		}
 	};
 
-	var isInBasket = function(url){
-		for(var i=0; i<inBasket.length; i++){
-			if(inBasket[i].url && inBasket[i].url === url){
+	var isInrol = function(url){
+		for(var i=0; i<inrol.length; i++){
+			if(inrol[i].url && inrol[i].url === url){
 				return i;
 			}
 		}
 		return -1;
 	};
 
-	var getBasketObj = function(key){
-		for(var i=0; i<inBasket.length; i++){
-			if(inBasket[i].key && inBasket[i].key === key){
-				return inBasket[i];
+	var getrolObj = function(key){
+		for(var i=0; i<inrol.length; i++){
+			if(inrol[i].key && inrol[i].key === key){
+				return inrol[i];
 			}
 		}
 		return null;
 	};
 
-	window.basket = {
+	window.rol = {
 		require: function() {
 			for ( var a = 0, l = arguments.length; a < l; a++ ) {
 				arguments[a].execute = arguments[a].execute !== false;
 				
-				if ( arguments[a].once && isInBasket(arguments[a].url) >= 0 ) {
+				if ( arguments[a].once && isInrol(arguments[a].url) >= 0 ) {
 					arguments[a].execute = false;
-				} else if ( arguments[a].execute !== false && isInBasket(arguments[a].url) < 0 ) {  
-					inBasket.push(arguments[a]);
+				} else if ( arguments[a].execute !== false && isInrol(arguments[a].url) < 0 ) {  
+					inrol.push(arguments[a]);
 				} 
 			}
                         
@@ -300,20 +292,21 @@
 		},
 
 		removeHandler: function( types ) {
-			basket.addHandler( types, undefined );
+			rol.addHandler( types, undefined );
 		}
 	};
 
 	// delete expired keys
-	basket.clear( true );
+	rol.clear( true );
 
 })( this, document );
 
 
-//加载js的插件，配合requirejs
-(function (window, document, basket, requirejs) {
+/**
+ * 加载js的插件，配合requirejs
+ */
+(function (window, document, rol, requirejs) {
 	'use strict';
-	
     var ct;
     var mn;
 
@@ -330,33 +323,26 @@
         head.appendChild( script );
     };
 
-    basket.addHandler('application/javascript', jsCallback);
-    basket.addHandler('application/x-javascript; charset=utf-8', jsCallback);
+    rol.addHandler('application/javascript', jsCallback);
+    rol.addHandler('application/x-javascript; charset=utf-8', jsCallback);
 
     var originalLader = requirejs.load;
     requirejs.load = function (context, moduleName, url) {
-        
-        /**
-         * There is currently no public way to access requirejs's config.
-         * As suggested by James Burke, we can somewhat rely on the semi-private "requirejs.s.contexts._.config" as it has not changed between 1.0 and 2.0.
-         *
-         * Source: https://groups.google.com/forum/#!topic/requirejs/Hf-qNmM0ceI
-         */
-
+		//requirejs.s.contexts._.config 内部属性
         var config = requirejs.s.contexts._.config;
-        if (config.basket && config.basket.excludes && config.basket.excludes.indexOf(moduleName) !== -1) {
+        if (config.rol && config.rol.excludes && config.rol.excludes.indexOf(moduleName) !== -1) {
             originalLader(context, moduleName, url);
         } else {
             var unique = 1;
-            if(config.basket && config.basket.unique && config.basket.unique.hasOwnProperty(moduleName) ){
-                unique = config.basket.unique[moduleName];
+            if(config.rol && config.rol.unique && config.rol.unique.hasOwnProperty(moduleName) ){
+                unique = config.rol.unique[moduleName];
             }
 
-            basket.require({ url: url,unique:unique , fetchComplete: function(){
+            rol.require({ url: url,unique:unique , fetchComplete: function(){
                 ct = context;
                 mn = moduleName;
             }});
         }
     };
 
-})(this, document, basket, requirejs);
+})(this, document, rol, requirejs);
