@@ -195,6 +195,8 @@
 		script.async = true;
 		script.src = encodeURI('data:text/javascript,' + obj.data);
 		script.setAttribute('data-key', obj.key);
+		script.setAttribute('data-requirecontext', obj.context.contextName);
+        script.setAttribute('data-requiremodule', obj.moduleName);
 		script.addEventListener('load', onScriptLoad, false);
         script.addEventListener('error', onScriptError, false);
 		head.appendChild( script );
@@ -376,7 +378,7 @@
                 unique = config.rol.unique[moduleName];
             }
 
-            rol.require({ url: url,unique:unique , fetchComplete: function(){
+            rol.require({ url: url,unique:unique , context: context, moduleName: moduleName, fetchComplete: function(){
                 ct = context;
                 mn = moduleName;
             }});
