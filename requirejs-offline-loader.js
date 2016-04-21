@@ -9,7 +9,7 @@
 	var head = document.head || document.getElementsByTagName('head')[0];
 	var storagePrefix = 'rol-';
 	var defaultExpiration = 5000;
-	var inrol = [];
+	var files = [];
 
 	/**
 	 * 添加到localstorage中进行存储
@@ -81,6 +81,7 @@
 		setTimeout( function () {
 			if( xhr.readyState < 4 ) {
 				xhr.abort();
+				throw new Error('文件加载超时' + url);
 			}
 		}, rol.timeout );
 		// xhr.setRequestHeader('Accept-Charset', 'UTF-8');
@@ -122,6 +123,14 @@
 			source.expire - +new Date() < 0  ||
 			(rol.isValidItem && !rol.isValidItem(source, obj));
 	};
+	
+	//过滤url路径
+	var filterPath = function(path){
+		var res = path.split('/');
+		var fileName = res[res.length-1]; //文件名
+		var prefix = res.replace(fileName, ''); //路径
+		return prefix + rol.fileNameRegular(fileName);
+	}
 
 	var handleStackObject = function( obj ) {
 		var source, shouldFetch;
@@ -142,12 +151,18 @@
 		 */
 		if(source && shouldFetch){
 			var key = obj.key;
-			var res = key.split('/');
-			var fileName = res[res.length-1]; //文件名
-			var prefix = key.replace(fileName, ''); //路径
-			fileName = fileName.replace(/[\d\w]{8}\.([\w\d\.]+)(js|css)/,'$1$2'); //匹配类似 l0d9b3jy.test.js
+			
+			if(rol.fileNameRegular){
+				key = filterPath(key);
+			}
+			
+			var itemUrl = '';
 			for(var item in localStorage){
-				if(item.lastIndexOf(fileName) === item.length - fileName.length  && item.indexOf(storagePrefix + prefix) === 0){
+				itemUrl = item;
+				if(rol.fileNameRegular){
+					itemUrl = filterPath(item);
+				}
+				if(key === itemUrl){
 					localStorage.removeItem(item);
 				}
 			}
@@ -165,7 +180,17 @@
 		}
 	};
 
-	var injectScript = function( obj ) {
+
+	var handlers = {
+		'default': createScript,
+		'js' : createScript,
+		'css': createStyle
+	};
+	
+	/**
+	 * 创建js脚本
+	 */
+	var createScript = function( obj ) {
 		var script = document.createElement('script');
 		script.async = true;
 		script.src = encodeURI('data:text/javascript,' + obj.data);
@@ -174,25 +199,34 @@
         script.addEventListener('error', onScriptError, false);
 		head.appendChild( script );
 	};
-
+	
 	var onScriptLoad = function(event){
 		var key = event.target.getAttribute('data-key');
 		if(!key) {
 			return;
 		}
-		var obj = getrolObj(key);
+		var obj = getObj(key);
 		if(obj.loadComplete){
 			obj.loadComplete();
 		}
 	};
-
+	
 	var onScriptError = function(event){
 		console.error(event);
 	};
-
-	var handlers = {
-		'default': injectScript
-	};
+	
+	/**
+	 * 创建css
+	 */
+	var createStyle = function(result){
+		var css = result.data;
+		var head = document.getElementsByTagName('head')[0];
+		var style = document.createElement('style');
+		style.setAttribute('data-key', result.key);
+		head.appendChild(style);
+		style.type = 'text/css';
+		style.innerHTML = css;
+	}
 
 	var execute = function( obj ) {
 		if( !obj.execute ) {
@@ -206,40 +240,44 @@
 	};
 
 	var fetch = function() {
-		var i, l, promises = [];
+		var i, l;
 
 		for ( i = 0, l = arguments.length; i < l; i++ ) {
-			promises.push( handleStackObject( arguments[ i ] ) );
+			handleStackObject( arguments[ i ] );
 		}
 	};
 
-	var isInrol = function(url){
-		for(var i=0; i<inrol.length; i++){
-			if(inrol[i].url && inrol[i].url === url){
-				return i;
+	var isCached = function(url){
+		for(var i=0; i<files.length; i++){
+			if(files[i].url && files[i].url === url){
+				return true;
 			}
 		}
-		return -1;
+		return false;
 	};
 
-	var getrolObj = function(key){
-		for(var i=0; i<inrol.length; i++){
-			if(inrol[i].key && inrol[i].key === key){
-				return inrol[i];
+	var getObj = function(key){
+		for(var i=0; i<files.length; i++){
+			if(files[i].key && files[i].key === key){
+				return files[i];
 			}
 		}
 		return null;
 	};
 
+
 	window.rol = {
+		/**
+		 * 参数格式[{url: '', key: 'test', type: 'js', once: false, execute: false, fetchComplete: function(){}}, ...]
+		 */
 		require: function() {
 			for ( var a = 0, l = arguments.length; a < l; a++ ) {
 				arguments[a].execute = arguments[a].execute !== false;
 				
-				if ( arguments[a].once && isInrol(arguments[a].url) >= 0 ) {
+				if ( arguments[a].once && isCached(arguments[a].url) ) {
 					arguments[a].execute = false;
-				} else if ( arguments[a].execute !== false && isInrol(arguments[a].url) < 0 ) {  
-					inrol.push(arguments[a]);
+				} else if ( arguments[a].execute !== false && !isCached(arguments[a].url) ) {  
+					files.push(arguments[a]);
 				} 
 			}
                         
@@ -277,6 +315,10 @@
 		isValidItem: null,
 
 		timeout: 5000,
+		
+		fileNameRegular: null,
+		
+		excludes: [], //需要排除的，不需要用插件加载的（不用离线存储的）
 
 		addHandler: function( types, handler ) {
 			if( !Array.isArray( types ) ) {
