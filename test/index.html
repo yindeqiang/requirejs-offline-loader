@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>test</title>
+  <script src="require.js" charset="utf-8"></script>
+  <script src="../rol.js" charset="utf-8"></script>
+</head>
+<body>
+  <div class="test-div">requirejs-offline-loader</div>
+<script type="text/javascript">
+//excute 加载代码是否要进行执行，需要对应的handle
+  window.rol.require({ url: 'css/main.css', execute: true});
+  require(['js/m']);
+</script>
+</body>
+</html>
